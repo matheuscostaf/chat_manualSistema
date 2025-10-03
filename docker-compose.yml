@@ -1,0 +1,16 @@
+services:
+  app:
+    image: ghcr.io/fozdoiguassu/chat-pgm:latest
+    container_name: chat-pgm
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - SERVER_URL
+      - HCAPTCHA_SECRET
+      - HCAPTCHA_SITE_KEY
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
