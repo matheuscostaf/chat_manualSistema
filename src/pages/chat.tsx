@@ -1,4 +1,4 @@
-import { useCallback, useReducer, useEffect, useRef } from 'react';
+import { useCallback, useReducer, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import InputArea from '@/components/InputArea';
 import Message from '@/components/Message';
@@ -117,7 +117,7 @@ export default function ChatPage({ sessionId: initialSessionId }: ChatPageProps)
           <div className="welcome-content">
             <Image src="/logo_pgmfi.svg" alt="PGM Foz do Iguaçu" width={250} height={200} />
             <div className="welcome-text">
-              <h1 className="welcome-title">Sou o assistente virtual da Procuradoria Geral de Foz.</h1>
+              <h1 className="welcome-title">Sou o assistente Virtual de Suporte ao novo Sistema.</h1>
               <p className="welcome-subtitle">Como posso ajudar você hoje?</p>
             </div>
           </div>
@@ -157,7 +157,6 @@ export default function ChatPage({ sessionId: initialSessionId }: ChatPageProps)
             </div>
         </div>
       </div>
-
     </Layout>
   );
 }

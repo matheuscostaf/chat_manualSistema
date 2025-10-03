@@ -199,10 +199,10 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       httpOnly: true, // Make cookie HTTP-only for security
     });
     
-    console.log('hCaptcha verification successful, redirecting to chat');
+    console.log('hCaptcha verification successful, redirecting to tutorial');
     return {
       redirect: {
-        destination: '/chat',
+        destination: '/tutorial',
         permanent: false,
       }
     };
