@@ -31,7 +31,7 @@ export default function Layout({ children, title = "Agente de IA da PGM Foz do I
         <title>{title}</title>
       </Head>
       <main>
-        <div className="w-full max-w-2xl bg-white" style={{margin: 'auto'}}>
+        <div className="w-full bg-white">
           {children}
         </div>
       </main>
