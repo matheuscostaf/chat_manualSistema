@@ -20,59 +20,67 @@ interface ChatPageProps {
 const FAQ_ITEMS = [
   {
     id: 1,
-    question: "Como faço login no sistema?",
-    answer: "Como faço login no sistema?"
+    question: "Como cadastrar um usuário?",
+    answer: "Como cadastrar um usuário?"
   },
   {
     id: 2,
-    question: "Como alterar minha senha?",
-    answer: "Como alterar minha senha?"
+    question: "De que forma posso gerar o DAM de Recolhimento do ISSQN?",
+    answer: "De que forma posso gerar o DAM de Recolhimento do ISSQN?"
   },
   {
     id: 3,
-    question: "Como acessar relatórios?",
-    answer: "Como acessar relatórios?"
+    question: "Quem está obrigado a realizar a Declaração Eletrônica de Serviços de Instituições Financeiras (DES-IF)?",
+    answer: "Quem está obrigado a realizar a Declaração Eletrônica de Serviços de Instituições Financeiras (DES-IF)?"
   },
   {
     id: 4,
-    question: "Como cadastrar um novo usuário?",
-    answer: "Como cadastrar um novo usuário?"
+    question: "O que é a NFS-e?",
+    answer: "O que é a NFS-e?"
   },
   {
     id: 5,
-    question: "Como recuperar dados perdidos?",
-    answer: "Como recuperar dados perdidos?"
+    question: "Pode emitir Nota Fiscal de Serviços Eletrônica - NFS-e, com data retroativa?",
+    answer: "Pode emitir Nota Fiscal de Serviços Eletrônica - NFS-e, com data retroativa?"
   },
   {
     id: 6,
-    question: "Como configurar permissões?",
-    answer: "Como configurar permissões?"
+    question: "Onde devo entregar o cadastro eletrônico - CeC®?",
+    answer: "Onde devo entregar o cadastro eletrônico - CeC®?"
   },
   {
     id: 7,
-    question: "Como fazer backup dos dados?",
-    answer: "Como fazer backup dos dados?"
+    question: "Onde posso encontrar os documentos de padronização da NFS-e e do Web Service?",
+    answer: "Onde posso encontrar os documentos de padronização da NFS-e e do Web Service?"
   },
-  {
-    id: 8,
-    question: "Como integrar com outros sistemas?",
-    answer: "Como integrar with outros sistemas?"
-  }
 ];
 
 
 const sendMessage = async (text: string, sessionId?: string): Promise<MessageType> => {
   try {
+    // Criar um AbortController para timeout manual
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutos timeout
+
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ text, sessionId }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       console.error('Chat API error response:', response.status, response.statusText);
+      
+      // Mensagem mais específica para timeout
+      if (response.status === 504) {
+        throw new Error('O servidor está demorando para responder. Isso pode acontecer com perguntas complexas. Por favor, aguarde ou tente novamente.');
+      }
+      
       throw new Error(`Chat API respondeu com status ${response.status}: ${response.statusText}`);
     }
 
@@ -82,7 +90,24 @@ const sendMessage = async (text: string, sessionId?: string): Promise<MessageTyp
     // Verificar se a resposta contém texto válido
     let responseText = '';
     if (data && typeof data === 'object') {
-      responseText = data.text || data.message || data.response || '';
+      // Procurar por diferentes propriedades que podem conter a resposta
+      responseText = data.text || data.message || data.response || data.content || data.answer || '';
+      
+      // Se ainda não encontrou texto, verificar se há propriedades aninhadas
+      if (!responseText && data.data) {
+        responseText = data.data.text || data.data.message || data.data.response || '';
+      }
+      
+      // Log para debug
+      console.log('Response text extraction:', {
+        hasText: !!data.text,
+        hasMessage: !!data.message,
+        hasResponse: !!data.response,
+        hasContent: !!data.content,
+        hasAnswer: !!data.answer,
+        extractedText: responseText?.substring(0, 100) + '...',
+        dataKeys: Object.keys(data)
+      });
     } else if (typeof data === 'string') {
       responseText = data;
     }
@@ -95,8 +120,14 @@ const sendMessage = async (text: string, sessionId?: string): Promise<MessageTyp
     return buildMessage(responseText, 'bot');
   } catch (error) {
     console.error('Error in sendMessage:', error);
+    
+    // Verificar se foi um timeout no frontend
+    if (error instanceof Error && error.name === 'AbortError') {
+      return buildMessage('A consulta está demorando mais que o esperado. Por favor, tente reformular sua pergunta ou aguarde um momento e tente novamente.', 'bot');
+    }
+    
     const errorMessage = error instanceof Error 
-      ? `Erro: ${error.message}` 
+      ? `${error.message}` 
       : 'Erro desconhecido ao enviar mensagem';
     return buildMessage(errorMessage, 'bot');
   }

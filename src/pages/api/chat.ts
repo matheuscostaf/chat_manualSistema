@@ -5,7 +5,7 @@ import https from 'https';
 // Create a custom HTTPS agent with proper SSL configuration
 const httpsAgent = new https.Agent({
   rejectUnauthorized: false, // Only for development - remove in production
-  timeout: 30000, // 30 seconds timeout
+  timeout: 120000, // 2 minutes timeout
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -45,7 +45,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     // Use fetch with proper error handling and timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 seconds timeout
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout
 
     try {
       const externalResponse = await fetch(serverUrl, {
@@ -81,63 +81,86 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
       }
 
-      // Handle response based on content-length and content-type
-      const contentLength = externalResponse.headers.get('content-length');
+      // Handle response based on content-type
       const contentType = externalResponse.headers.get('content-type') || '';
+      const transferEncoding = externalResponse.headers.get('transfer-encoding');
+      
+      console.log('Response headers analysis:', {
+        contentType,
+        transferEncoding,
+        hasChunkedEncoding: transferEncoding === 'chunked',
+        contentEncoding: externalResponse.headers.get('content-encoding')
+      });
       
       let responseBody;
       
-      // Check if response is empty
-      if (contentLength === '0' || contentLength === null) {
-        console.log('External server returned empty response');
-        responseBody = {
-          message: 'Resposta processada com sucesso',
-          status: 'success',
-          timestamp: new Date().toISOString()
-        };
-      } else if (contentType.includes('application/json')) {
-        try {
-          const text = await externalResponse.text();
-          console.log('Raw response text:', text);
-          
-          if (text.trim() === '') {
-            console.log('Empty response body detected');
+      try {
+        // Sempre tenta ler o texto da resposta primeiro
+        const text = await externalResponse.text();
+        console.log('Raw response text length:', text.length);
+        console.log('Raw response text preview:', text.substring(0, 200) + (text.length > 200 ? '...' : ''));
+        
+        // Check if response is actually empty
+        if (!text || text.trim() === '') {
+          console.log('External server returned truly empty response');
+          responseBody = {
+            message: 'Resposta processada com sucesso, mas servidor retornou resposta vazia',
+            status: 'success',
+            timestamp: new Date().toISOString()
+          };
+        } else if (contentType.includes('application/json')) {
+          try {
+            responseBody = JSON.parse(text);
+            console.log('Successfully parsed JSON response');
+          } catch (parseError) {
+            console.error('JSON parsing error:', parseError);
+            console.log('Failed to parse as JSON, treating as text');
             responseBody = {
-              message: 'Resposta processada com sucesso',
+              text: text,
+              message: text,
               status: 'success',
               timestamp: new Date().toISOString()
             };
-          } else {
-            responseBody = JSON.parse(text);
           }
-        } catch (parseError) {
-          console.error('JSON parsing error:', parseError);
-          return res.status(500).json({
-            error: 'Erro ao processar resposta do servidor',
-            message: 'Resposta do servidor não está em formato JSON válido'
-          });
-        }
-      } else {
-        // Handle non-JSON responses
-        responseBody = await externalResponse.text();
-        if (!responseBody || responseBody.trim() === '') {
+        } else {
+          // Handle non-JSON responses as text
+          console.log('Non-JSON response, treating as text');
           responseBody = {
-            message: 'Resposta processada com sucesso',
+            text: text,
+            message: text,
             status: 'success',
             timestamp: new Date().toISOString()
           };
         }
+      } catch (readError) {
+        console.error('Error reading response body:', readError);
+        return res.status(500).json({
+          error: 'Erro ao ler resposta do servidor',
+          message: 'Não foi possível processar a resposta do servidor externo'
+        });
       }
 
       console.log('Sending response to client:', {
         type: typeof responseBody,
         isString: typeof responseBody === 'string',
         isObject: typeof responseBody === 'object',
-        hasMessage: responseBody && typeof responseBody === 'object' && 'message' in responseBody,
+        hasText: responseBody && typeof responseBody === 'object' && ('text' in responseBody),
+        hasMessage: responseBody && typeof responseBody === 'object' && ('message' in responseBody),
+        responseKeys: typeof responseBody === 'object' ? Object.keys(responseBody) : [],
         preview: typeof responseBody === 'string' 
-          ? responseBody.substring(0, 100) + '...' 
-          : JSON.stringify(responseBody).substring(0, 100) + '...'
+          ? responseBody.substring(0, 100) + (responseBody.length > 100 ? '...' : '')
+          : JSON.stringify(responseBody).substring(0, 100) + (JSON.stringify(responseBody).length > 100 ? '...' : '')
       });
+
+      // Garantir que sempre enviamos uma resposta válida
+      if (typeof responseBody === 'string') {
+        responseBody = {
+          text: responseBody,
+          message: responseBody,
+          status: 'success',
+          timestamp: new Date().toISOString()
+        };
+      }
 
       // Retornar resposta para o cliente
       return res.status(200).json(responseBody);
@@ -149,7 +172,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.error('Request timeout to external server');
         return res.status(504).json({
           error: 'Timeout na comunicação com o servidor',
-          message: 'O servidor demorou muito para responder'
+          message: 'O servidor demorou mais de 2 minutos para responder. Tente novamente.'
         });
       }
       

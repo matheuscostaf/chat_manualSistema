@@ -2,6 +2,38 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ['axios', 'https'],
+  // Configurar timeout para funções serverless
+  async rewrites() {
+    return [];
+  },
+  webpack: (config, { isServer }) => {
+    // Configurações para evitar nomes de arquivos muito longos
+    config.optimization = {
+      ...config.optimization,
+      splitChunks: {
+        ...config.optimization.splitChunks,
+        cacheGroups: {
+          ...config.optimization.splitChunks?.cacheGroups,
+          default: {
+            ...config.optimization.splitChunks?.cacheGroups?.default,
+            name: false,
+          },
+          vendor: {
+            ...config.optimization.splitChunks?.cacheGroups?.vendor,
+            name: false,
+          },
+        },
+      },
+    };
+    
+    // Configurar nomes de arquivos mais curtos
+    if (!isServer) {
+      config.output.filename = 'static/js/[name].[contenthash:8].js';
+      config.output.chunkFilename = 'static/js/[name].[contenthash:8].chunk.js';
+    }
+    
+    return config;
+  },
   async headers() {
     return [
       {

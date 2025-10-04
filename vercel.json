@@ -1,0 +1,12 @@
+{
+  "functions": {
+    "src/pages/api/chat.ts": {
+      "maxDuration": 120
+    }
+  },
+  "build": {
+    "env": {
+      "NODE_OPTIONS": "--max-old-space-size=4096"
+    }
+  }
+}
